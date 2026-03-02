@@ -194,4 +194,79 @@ export class PurchaseService {
       })),
     };
   }
+
+  async listPurchases(input: {
+    page: number;
+    limit: number;
+    supplierId?: number;
+  }): Promise<{
+    total: number;
+    items: Array<{
+      id: number;
+      invoiceNo: string | null;
+      purchaseDate: Date;
+      totalCost: string;
+      supplier: {
+        id: number;
+        name: string;
+      };
+      createdBy: {
+        id: number;
+        name: string;
+        email: string;
+      };
+      itemsCount: number;
+    }>;
+  }> {
+    const where: Prisma.PurchaseWhereInput = {
+      ...(input.supplierId ? { supplierId: input.supplierId } : {}),
+    };
+
+    const [total, rows] = await prisma.$transaction([
+      prisma.purchase.count({ where }),
+      prisma.purchase.findMany({
+        where,
+        orderBy: { purchaseDate: 'desc' },
+        skip: (input.page - 1) * input.limit,
+        take: input.limit,
+        select: {
+          id: true,
+          invoiceNo: true,
+          purchaseDate: true,
+          totalCost: true,
+          supplier: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          _count: {
+            select: {
+              items: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      items: rows.map((row) => ({
+        id: row.id,
+        invoiceNo: row.invoiceNo,
+        purchaseDate: row.purchaseDate,
+        totalCost: row.totalCost.toString(),
+        supplier: row.supplier,
+        createdBy: row.createdBy,
+        itemsCount: row._count.items,
+      })),
+    };
+  }
 }
