@@ -1,5 +1,5 @@
 {
-  "name": "stationery-backend",
+  "name": "maki-stationery-server",
   "version": "1.0.0",
   "private": true,
   "description": "Production-ready Express backend with TypeScript, Prisma, PostgreSQL, JWT auth, and RBAC",

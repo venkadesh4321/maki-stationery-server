@@ -1,4 +1,4 @@
-# Stationery Backend (Express + TypeScript + Prisma)
+# Maki Stationery Server (Express + TypeScript + Prisma)
 
 ## Folder Structure
 
