@@ -20,6 +20,135 @@ function resolveDateRange(input: DateRangeInput, fallbackDays: number): { from: 
 }
 
 export const analyticsService = {
+  async getDashboardOverview(): Promise<{
+    metrics: {
+      todaySales: number;
+      todayProfit: number;
+      monthlySales: number;
+      monthlyProfit: number;
+      totalStockValue: number;
+      lowStockAlerts: number;
+    };
+    weeklyTrend: Array<{ week: string; sales: number; profit: number }>;
+    hourlyTrend: Array<{ hour: string; sales: number }>;
+    lowStockItems: Array<{ id: number; name: string; stock: number; min: number; category: string }>;
+    topSellingProducts: Array<{ id: number; name: string; sold: number; revenue: number }>;
+  }> {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const [todayAgg, monthAgg, stockAgg, lowStockCount, weeklyTrend, hourlyTrend, lowStockItems, topSellingProducts] =
+      await Promise.all([
+        prisma.$queryRaw<Array<{ sales: number; profit: number }>>(Prisma.sql`
+          SELECT
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
+          FROM "Purchase" p
+          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
+          INNER JOIN "Product" pr ON pr.id = pi."productId"
+          WHERE p."purchaseDate" >= ${startOfToday}
+            AND p."purchaseDate" <= ${endOfToday}
+        `),
+        prisma.$queryRaw<Array<{ sales: number; profit: number }>>(Prisma.sql`
+          SELECT
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
+          FROM "Purchase" p
+          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
+          INNER JOIN "Product" pr ON pr.id = pi."productId"
+          WHERE p."purchaseDate" >= ${startOfMonth}
+            AND p."purchaseDate" <= ${endOfMonth}
+        `),
+        prisma.$queryRaw<Array<{ value: number }>>(Prisma.sql`
+          SELECT
+            COALESCE(SUM((p."stockQuantity" * p."buyingPrice")::numeric), 0)::double precision AS value
+          FROM "Product" p
+          WHERE p."deletedAt" IS NULL
+        `),
+        prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+          SELECT COUNT(*)::int AS count
+          FROM "Product" p
+          WHERE p."deletedAt" IS NULL
+            AND p."stockQuantity" <= p."minimumStockLevel"
+        `),
+        prisma.$queryRaw<Array<{ week: string; sales: number; profit: number }>>(Prisma.sql`
+          SELECT
+            ('W' || CEIL(EXTRACT(DAY FROM p."purchaseDate") / 7.0)::int)::text AS week,
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
+          FROM "Purchase" p
+          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
+          INNER JOIN "Product" pr ON pr.id = pi."productId"
+          WHERE p."purchaseDate" >= ${startOfMonth}
+            AND p."purchaseDate" <= ${endOfMonth}
+          GROUP BY CEIL(EXTRACT(DAY FROM p."purchaseDate") / 7.0)
+          ORDER BY CEIL(EXTRACT(DAY FROM p."purchaseDate") / 7.0)
+        `),
+        prisma.$queryRaw<Array<{ hour: string; sales: number }>>(Prisma.sql`
+          SELECT
+            TO_CHAR(DATE_TRUNC('hour', p."purchaseDate"), 'HH24:00') AS hour,
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales
+          FROM "Purchase" p
+          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
+          INNER JOIN "Product" pr ON pr.id = pi."productId"
+          WHERE p."purchaseDate" >= ${startOfToday}
+            AND p."purchaseDate" <= ${endOfToday}
+          GROUP BY DATE_TRUNC('hour', p."purchaseDate")
+          ORDER BY DATE_TRUNC('hour', p."purchaseDate")
+        `),
+        prisma.$queryRaw<Array<{ id: number; name: string; stock: number; min: number; category: string }>>(Prisma.sql`
+          SELECT
+            p.id,
+            p.name,
+            p."stockQuantity" AS stock,
+            p."minimumStockLevel" AS min,
+            c.name AS category
+          FROM "Product" p
+          INNER JOIN "Category" c ON c.id = p."categoryId"
+          WHERE p."deletedAt" IS NULL
+            AND p."stockQuantity" <= p."minimumStockLevel"
+          ORDER BY p."stockQuantity" ASC, p.name ASC
+          LIMIT 5
+        `),
+        prisma.$queryRaw<Array<{ id: number; name: string; sold: number; revenue: number }>>(Prisma.sql`
+          SELECT
+            pr.id AS id,
+            pr.name AS name,
+            COALESCE(SUM(pi.quantity), 0)::int AS sold,
+            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS revenue
+          FROM "Purchase" p
+          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
+          INNER JOIN "Product" pr ON pr.id = pi."productId"
+          WHERE p."purchaseDate" >= ${startOfToday}
+            AND p."purchaseDate" <= ${endOfToday}
+          GROUP BY pr.id, pr.name
+          ORDER BY sold DESC, revenue DESC
+          LIMIT 5
+        `),
+      ]);
+
+    return {
+      metrics: {
+        todaySales: todayAgg[0]?.sales ?? 0,
+        todayProfit: todayAgg[0]?.profit ?? 0,
+        monthlySales: monthAgg[0]?.sales ?? 0,
+        monthlyProfit: monthAgg[0]?.profit ?? 0,
+        totalStockValue: stockAgg[0]?.value ?? 0,
+        lowStockAlerts: lowStockCount[0]?.count ?? 0,
+      },
+      weeklyTrend,
+      hourlyTrend,
+      lowStockItems,
+      topSellingProducts,
+    };
+  },
+
   async getDailySalesReport(input: DateRangeInput): Promise<
     Array<{ day: string; sales: number; cost: number; profit: number; items: number }>
   > {

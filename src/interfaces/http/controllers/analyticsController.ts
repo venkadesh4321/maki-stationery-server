@@ -26,6 +26,11 @@ function parseDate(value?: string): Date | undefined {
 }
 
 export const analyticsController = {
+  dashboard: async (_req: Request, res: Response): Promise<void> => {
+    const data = await analyticsService.getDashboardOverview();
+    res.json({ data });
+  },
+
   dailySales: async (req: Request, res: Response): Promise<void> => {
     const parsed = dateRangeSchema.safeParse(req.query);
     if (!parsed.success) {
