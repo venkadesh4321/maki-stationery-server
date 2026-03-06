@@ -4,6 +4,7 @@ import authRoutes from './authRoutes';
 import categoryRoutes from './categoryRoutes';
 import productRoutes from './productRoutes';
 import purchaseRoutes from './purchaseRoutes';
+import salesRoutes from './salesRoutes';
 import supplierRoutes from './supplierRoutes';
 import userRoutes from './userRoutes';
 
@@ -18,6 +19,7 @@ router.use('/analytics', analyticsRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/products', productRoutes);
 router.use('/purchases', purchaseRoutes);
+router.use('/sales', salesRoutes);
 router.use('/suppliers', supplierRoutes);
 router.use('/users', userRoutes);
 

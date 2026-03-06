@@ -14,6 +14,14 @@ enum Role {
 
 enum StockMovementType {
   PURCHASE_IN
+  SALE_OUT
+}
+
+enum PaymentMode {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
 }
 
 model User {
@@ -28,6 +36,7 @@ model User {
   createdBy    User?    @relation("UserCreatedUsers", fields: [createdById], references: [id])
   createdUsers User[]   @relation("UserCreatedUsers")
   purchases    Purchase[] @relation("UserPurchases")
+  sales        Sale[]     @relation("UserSales")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -51,6 +60,7 @@ model Product {
   categoryId        Int
   category          Category  @relation(fields: [categoryId], references: [id])
   purchaseItems     PurchaseItem[]
+  saleItems         SaleItem[]
   stockMovements    StockMovement[]
   buyingPrice       Decimal   @db.Decimal(12, 2)
   mrp               Decimal   @db.Decimal(12, 2)
@@ -121,6 +131,55 @@ model PurchaseItem {
   @@index([productId])
 }
 
+model Sale {
+  id          Int        @id @default(autoincrement())
+  invoiceNo   String     @unique
+  saleDate    DateTime   @default(now())
+  subtotal    Decimal    @db.Decimal(14, 2)
+  discount    Decimal    @default(0) @db.Decimal(14, 2)
+  totalAmount Decimal    @db.Decimal(14, 2)
+  items       SaleItem[]
+  payments    Payment[]
+  movements   StockMovement[]
+  createdById Int
+  createdBy   User       @relation("UserSales", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([saleDate])
+  @@index([createdById])
+}
+
+model SaleItem {
+  id         Int      @id @default(autoincrement())
+  saleId     Int
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  stockMovements StockMovement[]
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(12, 2)
+  lineTotal  Decimal  @db.Decimal(14, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Payment {
+  id        Int         @id @default(autoincrement())
+  saleId    Int
+  sale      Sale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  mode      PaymentMode
+  amount    Decimal     @db.Decimal(14, 2)
+  paidAt    DateTime    @default(now())
+  reference String?
+
+  @@index([saleId])
+  @@index([mode, paidAt])
+}
+
 model StockMovement {
   id             Int               @id @default(autoincrement())
   productId      Int
@@ -129,6 +188,10 @@ model StockMovement {
   purchase       Purchase?         @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
   purchaseItemId Int?
   purchaseItem   PurchaseItem?     @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
+  saleId         Int?
+  sale           Sale?             @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  saleItemId     Int?
+  saleItem       SaleItem?         @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
   movementType   StockMovementType
   quantity       Int
   balanceAfter   Int
@@ -137,4 +200,5 @@ model StockMovement {
 
   @@index([productId, createdAt])
   @@index([purchaseId])
+  @@index([saleId])
 }

@@ -18,6 +18,19 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2021' || err.code === 'P2022') {
+      logger.error('prisma_schema_mismatch', {
+        ...requestMeta,
+        code: err.code,
+        message: err.message,
+      });
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: 'Database schema is out of date. Run migrations and retry.',
+        code: err.code,
+      });
+      return;
+    }
+
     logger.error('prisma_error', {
       ...requestMeta,
       code: err.code,
