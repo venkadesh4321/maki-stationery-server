@@ -47,23 +47,35 @@ export const analyticsService = {
       await Promise.all([
         prisma.$queryRaw<Array<{ sales: number; profit: number }>>(Prisma.sql`
           SELECT
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
-          FROM "Purchase" p
-          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-          INNER JOIN "Product" pr ON pr.id = pi."productId"
-          WHERE p."purchaseDate" >= ${startOfToday}
-            AND p."purchaseDate" <= ${endOfToday}
+            COALESCE(SUM(s."totalAmount"), 0)::double precision AS sales,
+            COALESCE(SUM(s."totalAmount" - c.cost), 0)::double precision AS profit
+          FROM "Sale" s
+          INNER JOIN (
+            SELECT
+              si."saleId",
+              COALESCE(SUM((si.quantity * p."buyingPrice")::numeric), 0) AS cost
+            FROM "SaleItem" si
+            INNER JOIN "Product" p ON p.id = si."productId"
+            GROUP BY si."saleId"
+          ) c ON c."saleId" = s.id
+          WHERE s."saleDate" >= ${startOfToday}
+            AND s."saleDate" <= ${endOfToday}
         `),
         prisma.$queryRaw<Array<{ sales: number; profit: number }>>(Prisma.sql`
           SELECT
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
-          FROM "Purchase" p
-          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-          INNER JOIN "Product" pr ON pr.id = pi."productId"
-          WHERE p."purchaseDate" >= ${startOfMonth}
-            AND p."purchaseDate" <= ${endOfMonth}
+            COALESCE(SUM(s."totalAmount"), 0)::double precision AS sales,
+            COALESCE(SUM(s."totalAmount" - c.cost), 0)::double precision AS profit
+          FROM "Sale" s
+          INNER JOIN (
+            SELECT
+              si."saleId",
+              COALESCE(SUM((si.quantity * p."buyingPrice")::numeric), 0) AS cost
+            FROM "SaleItem" si
+            INNER JOIN "Product" p ON p.id = si."productId"
+            GROUP BY si."saleId"
+          ) c ON c."saleId" = s.id
+          WHERE s."saleDate" >= ${startOfMonth}
+            AND s."saleDate" <= ${endOfMonth}
         `),
         prisma.$queryRaw<Array<{ value: number }>>(Prisma.sql`
           SELECT
@@ -79,28 +91,32 @@ export const analyticsService = {
         `),
         prisma.$queryRaw<Array<{ week: string; sales: number; profit: number }>>(Prisma.sql`
           SELECT
-            ('W' || CEIL(EXTRACT(DAY FROM p."purchaseDate") / 7.0)::int)::text AS week,
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
-          FROM "Purchase" p
-          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-          INNER JOIN "Product" pr ON pr.id = pi."productId"
-          WHERE p."purchaseDate" >= ${startOfMonth}
-            AND p."purchaseDate" <= ${endOfMonth}
-          GROUP BY CEIL(EXTRACT(DAY FROM p."purchaseDate") / 7.0)
-          ORDER BY CEIL(EXTRACT(DAY FROM p."purchaseDate") / 7.0)
+            ('W' || CEIL(EXTRACT(DAY FROM s."saleDate") / 7.0)::int)::text AS week,
+            COALESCE(SUM(s."totalAmount"), 0)::double precision AS sales,
+            COALESCE(SUM(s."totalAmount" - c.cost), 0)::double precision AS profit
+          FROM "Sale" s
+          INNER JOIN (
+            SELECT
+              si."saleId",
+              COALESCE(SUM((si.quantity * p."buyingPrice")::numeric), 0) AS cost
+            FROM "SaleItem" si
+            INNER JOIN "Product" p ON p.id = si."productId"
+            GROUP BY si."saleId"
+          ) c ON c."saleId" = s.id
+          WHERE s."saleDate" >= ${startOfMonth}
+            AND s."saleDate" <= ${endOfMonth}
+          GROUP BY CEIL(EXTRACT(DAY FROM s."saleDate") / 7.0)
+          ORDER BY CEIL(EXTRACT(DAY FROM s."saleDate") / 7.0)
         `),
         prisma.$queryRaw<Array<{ hour: string; sales: number }>>(Prisma.sql`
           SELECT
-            TO_CHAR(DATE_TRUNC('hour', p."purchaseDate"), 'HH24:00') AS hour,
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales
-          FROM "Purchase" p
-          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-          INNER JOIN "Product" pr ON pr.id = pi."productId"
-          WHERE p."purchaseDate" >= ${startOfToday}
-            AND p."purchaseDate" <= ${endOfToday}
-          GROUP BY DATE_TRUNC('hour', p."purchaseDate")
-          ORDER BY DATE_TRUNC('hour', p."purchaseDate")
+            TO_CHAR(DATE_TRUNC('hour', s."saleDate"), 'HH24:00') AS hour,
+            COALESCE(SUM(s."totalAmount"), 0)::double precision AS sales
+          FROM "Sale" s
+          WHERE s."saleDate" >= ${startOfToday}
+            AND s."saleDate" <= ${endOfToday}
+          GROUP BY DATE_TRUNC('hour', s."saleDate")
+          ORDER BY DATE_TRUNC('hour', s."saleDate")
         `),
         prisma.$queryRaw<Array<{ id: number; name: string; stock: number; min: number; category: string }>>(Prisma.sql`
           SELECT
@@ -120,13 +136,13 @@ export const analyticsService = {
           SELECT
             pr.id AS id,
             pr.name AS name,
-            COALESCE(SUM(pi.quantity), 0)::int AS sold,
-            COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS revenue
-          FROM "Purchase" p
-          INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-          INNER JOIN "Product" pr ON pr.id = pi."productId"
-          WHERE p."purchaseDate" >= ${startOfToday}
-            AND p."purchaseDate" <= ${endOfToday}
+            COALESCE(SUM(si.quantity), 0)::int AS sold,
+            COALESCE(SUM(si."lineTotal"), 0)::double precision AS revenue
+          FROM "Sale" s
+          INNER JOIN "SaleItem" si ON si."saleId" = s.id
+          INNER JOIN "Product" pr ON pr.id = si."productId"
+          WHERE s."saleDate" >= ${startOfToday}
+            AND s."saleDate" <= ${endOfToday}
           GROUP BY pr.id, pr.name
           ORDER BY sold DESC, revenue DESC
           LIMIT 5
@@ -156,18 +172,18 @@ export const analyticsService = {
 
     return prisma.$queryRaw<Array<{ day: string; sales: number; cost: number; profit: number; items: number }>>(Prisma.sql`
       SELECT
-        DATE(p."purchaseDate")::text AS day,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-        COALESCE(SUM(pi."lineTotal"), 0)::double precision AS cost,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit,
-        COALESCE(SUM(pi.quantity), 0)::int AS items
-      FROM "Purchase" p
-      INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-      INNER JOIN "Product" pr ON pr.id = pi."productId"
-      WHERE p."purchaseDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
-        AND p."purchaseDate" < ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
-      GROUP BY DATE(p."purchaseDate")
-      ORDER BY DATE(p."purchaseDate") ASC
+        DATE(s."saleDate")::text AS day,
+        COALESCE(SUM(si."lineTotal"), 0)::double precision AS sales,
+        COALESCE(SUM((si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS cost,
+        COALESCE(SUM(si."lineTotal" - (si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS profit,
+        COALESCE(SUM(si.quantity), 0)::int AS items
+      FROM "Sale" s
+      INNER JOIN "SaleItem" si ON si."saleId" = s.id
+      INNER JOIN "Product" pr ON pr.id = si."productId"
+      WHERE s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+        AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
+      GROUP BY DATE(s."saleDate")
+      ORDER BY DATE(s."saleDate") ASC
     `);
   },
 
@@ -181,17 +197,17 @@ export const analyticsService = {
 
     return prisma.$queryRaw<Array<{ month: string; sales: number; cost: number; profit: number }>>(Prisma.sql`
       SELECT
-        TO_CHAR(DATE_TRUNC('month', p."purchaseDate"), 'YYYY-MM') AS month,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-        COALESCE(SUM(pi."lineTotal"), 0)::double precision AS cost,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
-      FROM "Purchase" p
-      INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-      INNER JOIN "Product" pr ON pr.id = pi."productId"
-      WHERE p."purchaseDate" >= ${from}
-        AND p."purchaseDate" < ${to}
-      GROUP BY DATE_TRUNC('month', p."purchaseDate")
-      ORDER BY DATE_TRUNC('month', p."purchaseDate") ASC
+        TO_CHAR(DATE_TRUNC('month', s."saleDate"), 'YYYY-MM') AS month,
+        COALESCE(SUM(si."lineTotal"), 0)::double precision AS sales,
+        COALESCE(SUM((si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS cost,
+        COALESCE(SUM(si."lineTotal" - (si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS profit
+      FROM "Sale" s
+      INNER JOIN "SaleItem" si ON si."saleId" = s.id
+      INNER JOIN "Product" pr ON pr.id = si."productId"
+      WHERE s."saleDate" >= ${from}
+        AND s."saleDate" < ${to}
+      GROUP BY DATE_TRUNC('month', s."saleDate")
+      ORDER BY DATE_TRUNC('month', s."saleDate") ASC
     `);
   },
 
@@ -207,15 +223,15 @@ export const analyticsService = {
       SELECT
         pr.id AS "productId",
         pr.name AS "productName",
-        COALESCE(SUM(pi.quantity), 0)::int AS quantity,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-        COALESCE(SUM(pi."lineTotal"), 0)::double precision AS cost,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
-      FROM "Purchase" p
-      INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-      INNER JOIN "Product" pr ON pr.id = pi."productId"
-      WHERE p."purchaseDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
-        AND p."purchaseDate" < ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
+        COALESCE(SUM(si.quantity), 0)::int AS quantity,
+        COALESCE(SUM(si."lineTotal"), 0)::double precision AS sales,
+        COALESCE(SUM((si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS cost,
+        COALESCE(SUM(si."lineTotal" - (si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS profit
+      FROM "Sale" s
+      INNER JOIN "SaleItem" si ON si."saleId" = s.id
+      INNER JOIN "Product" pr ON pr.id = si."productId"
+      WHERE s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+        AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
       GROUP BY pr.id, pr.name
       ORDER BY profit DESC
       LIMIT ${limit}
@@ -233,15 +249,15 @@ export const analyticsService = {
       SELECT
         c.id AS "categoryId",
         c.name AS "categoryName",
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric), 0)::double precision AS sales,
-        COALESCE(SUM(pi."lineTotal"), 0)::double precision AS cost,
-        COALESCE(SUM((pi.quantity * pr."sellingPrice")::numeric - pi."lineTotal"), 0)::double precision AS profit
-      FROM "Purchase" p
-      INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-      INNER JOIN "Product" pr ON pr.id = pi."productId"
+        COALESCE(SUM(si."lineTotal"), 0)::double precision AS sales,
+        COALESCE(SUM((si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS cost,
+        COALESCE(SUM(si."lineTotal" - (si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS profit
+      FROM "Sale" s
+      INNER JOIN "SaleItem" si ON si."saleId" = s.id
+      INNER JOIN "Product" pr ON pr.id = si."productId"
       INNER JOIN "Category" c ON c.id = pr."categoryId"
-      WHERE p."purchaseDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
-        AND p."purchaseDate" < ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
+      WHERE s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+        AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
       GROUP BY c.id, c.name
       ORDER BY profit DESC
     `);
@@ -296,7 +312,7 @@ export const analyticsService = {
       INNER JOIN "StockMovement" sm ON sm."productId" = p.id
       WHERE p."deletedAt" IS NULL
         AND sm."createdAt" >= ${from}
-        AND sm."movementType" = 'PURCHASE_IN'
+        AND sm."movementType" = 'SALE_OUT'
       GROUP BY p.id, p.name, p."stockQuantity"
       ORDER BY "movedQuantity" DESC
       LIMIT ${limit}
