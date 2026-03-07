@@ -6,6 +6,8 @@ import { authorize } from '../middlewares/authorize';
 
 const router = Router();
 
+router.get('/', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.list));
+router.get('/:id', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.getById));
 router.post('/checkout', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.checkout));
 
 export default router;

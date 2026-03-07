@@ -19,9 +19,61 @@ const checkoutSchema = z.object({
   paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']),
 });
 
+const listSalesQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  invoiceNo: z.string().trim().min(1).max(100).optional(),
+  fromDate: z.string().date().optional(),
+  toDate: z.string().date().optional(),
+  paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
+  createdById: z.coerce.number().int().positive().optional(),
+});
+
+const saleIdParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
 const saleService = new SaleService();
 
 export const saleController = {
+  list: async (req: Request, res: Response): Promise<void> => {
+    const parsed = listSalesQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw HttpError.badRequest('Invalid query params');
+    }
+
+    const { page, limit, invoiceNo, fromDate, toDate, paymentMode, createdById } = parsed.data;
+    const result = await saleService.listSales({
+      page,
+      limit,
+      invoiceNo,
+      fromDate,
+      toDate,
+      paymentMode,
+      createdById,
+    });
+
+    res.status(StatusCodes.OK).json({
+      data: result.items,
+      pagination: {
+        page,
+        limit,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limit),
+      },
+    });
+  },
+
+  getById: async (req: Request, res: Response): Promise<void> => {
+    const parsed = saleIdParamsSchema.safeParse(req.params);
+    if (!parsed.success) {
+      throw HttpError.badRequest('Invalid sale id');
+    }
+
+    const sale = await saleService.getSaleById(parsed.data.id);
+    res.status(StatusCodes.OK).json({ data: sale });
+  },
+
   checkout: async (req: Request, res: Response): Promise<void> => {
     const parsed = checkoutSchema.safeParse(req.body);
     if (!parsed.success) {

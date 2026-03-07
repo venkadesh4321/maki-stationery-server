@@ -281,4 +281,227 @@ export class SaleService {
 
     return sale;
   }
+
+  async listSales(input: {
+    page: number;
+    limit: number;
+    invoiceNo?: string;
+    fromDate?: string;
+    toDate?: string;
+    paymentMode?: PaymentMode;
+    createdById?: number;
+  }): Promise<{
+    total: number;
+    items: Array<{
+      id: number;
+      invoiceNo: string;
+      saleDate: Date;
+      subtotal: string;
+      discount: string;
+      totalAmount: string;
+      itemsCount: number;
+      payment: {
+        mode: PaymentMode;
+        amount: string;
+      } | null;
+      createdBy: {
+        id: number;
+        name: string;
+        email: string;
+      };
+    }>;
+  }> {
+    const where: Prisma.SaleWhereInput = {
+      ...(input.invoiceNo
+        ? {
+            invoiceNo: {
+              contains: input.invoiceNo.trim(),
+              mode: 'insensitive',
+            },
+          }
+        : {}),
+      ...(input.createdById ? { createdById: input.createdById } : {}),
+      ...(input.paymentMode
+        ? {
+            payments: {
+              some: {
+                mode: input.paymentMode,
+              },
+            },
+          }
+        : {}),
+      ...((input.fromDate || input.toDate)
+        ? {
+            saleDate: {
+              ...(input.fromDate ? { gte: new Date(`${input.fromDate}T00:00:00.000Z`) } : {}),
+              ...(input.toDate ? { lte: new Date(`${input.toDate}T23:59:59.999Z`) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, rows] = await prisma.$transaction([
+      prisma.sale.count({ where }),
+      prisma.sale.findMany({
+        where,
+        orderBy: { saleDate: 'desc' },
+        skip: (input.page - 1) * input.limit,
+        take: input.limit,
+        select: {
+          id: true,
+          invoiceNo: true,
+          saleDate: true,
+          subtotal: true,
+          discount: true,
+          totalAmount: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          payments: {
+            select: {
+              mode: true,
+              amount: true,
+            },
+            take: 1,
+            orderBy: {
+              paidAt: 'desc',
+            },
+          },
+          _count: {
+            select: {
+              items: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      items: rows.map((row) => ({
+        id: row.id,
+        invoiceNo: row.invoiceNo,
+        saleDate: row.saleDate,
+        subtotal: row.subtotal.toString(),
+        discount: row.discount.toString(),
+        totalAmount: row.totalAmount.toString(),
+        itemsCount: row._count.items,
+        payment: row.payments[0]
+          ? {
+              mode: row.payments[0].mode,
+              amount: row.payments[0].amount.toString(),
+            }
+          : null,
+        createdBy: row.createdBy,
+      })),
+    };
+  }
+
+  async getSaleById(saleId: number): Promise<{
+    id: number;
+    invoiceNo: string;
+    saleDate: Date;
+    subtotal: string;
+    discount: string;
+    totalAmount: string;
+    createdBy: {
+      id: number;
+      name: string;
+      email: string;
+    };
+    payment: {
+      mode: PaymentMode;
+      amount: string;
+      paidAt: Date;
+      reference: string | null;
+    } | null;
+    items: Array<{
+      id: number;
+      productId: number;
+      productName: string;
+      quantity: number;
+      unitPrice: string;
+      lineTotal: string;
+    }>;
+  }> {
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      select: {
+        id: true,
+        invoiceNo: true,
+        saleDate: true,
+        subtotal: true,
+        discount: true,
+        totalAmount: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        payments: {
+          select: {
+            mode: true,
+            amount: true,
+            paidAt: true,
+            reference: true,
+          },
+          take: 1,
+          orderBy: {
+            paidAt: 'desc',
+          },
+        },
+        items: {
+          orderBy: { id: 'asc' },
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            unitPrice: true,
+            lineTotal: true,
+            product: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw HttpError.notFound('Sale not found');
+    }
+
+    return {
+      id: sale.id,
+      invoiceNo: sale.invoiceNo,
+      saleDate: sale.saleDate,
+      subtotal: sale.subtotal.toString(),
+      discount: sale.discount.toString(),
+      totalAmount: sale.totalAmount.toString(),
+      createdBy: sale.createdBy,
+      payment: sale.payments[0]
+        ? {
+            mode: sale.payments[0].mode,
+            amount: sale.payments[0].amount.toString(),
+            paidAt: sale.payments[0].paidAt,
+            reference: sale.payments[0].reference,
+          }
+        : null,
+      items: sale.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        productName: item.product.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice.toString(),
+        lineTotal: item.lineTotal.toString(),
+      })),
+    };
+  }
 }
