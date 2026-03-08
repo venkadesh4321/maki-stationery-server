@@ -33,6 +33,7 @@ const listQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
   search: z.string().optional(),
+  categoryId: z.coerce.number().int().positive().optional(),
   lowStockOnly: z
     .enum(['true', 'false'])
     .optional()
@@ -89,8 +90,8 @@ export const productController = {
       throw HttpError.badRequest('Invalid query params');
     }
 
-    const { page, limit, search, lowStockOnly } = parsed.data;
-    const result = await productService.listProducts({ page, limit, search, lowStockOnly });
+    const { page, limit, search, categoryId, lowStockOnly } = parsed.data;
+    const result = await productService.listProducts({ page, limit, search, categoryId, lowStockOnly });
 
     res.status(StatusCodes.OK).json({
       data: result.items,

@@ -99,7 +99,7 @@ export class PrismaProductRepository implements ProductRepository {
   }
 
   async list(filters: ProductFilters): Promise<ProductListResult> {
-    const { page, limit, search, lowStockOnly } = filters;
+    const { page, limit, search, lowStockOnly, categoryId } = filters;
 
     const where: Prisma.ProductWhereInput = {
       deletedAt: null,
@@ -110,6 +110,10 @@ export class PrismaProductRepository implements ProductRepository {
         { name: { contains: search, mode: 'insensitive' } },
         { barcode: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (categoryId) {
+      where.categoryId = categoryId;
     }
 
     if (!lowStockOnly) {
@@ -134,6 +138,7 @@ export class PrismaProductRepository implements ProductRepository {
       p."deletedAt" IS NULL
       AND p."stockQuantity" <= p."minimumStockLevel"
       ${search ? Prisma.sql`AND (p."name" ILIKE ${`%${search}%`} OR p."barcode" ILIKE ${`%${search}%`})` : Prisma.empty}
+      ${categoryId ? Prisma.sql`AND p."categoryId" = ${categoryId}` : Prisma.empty}
     `;
 
     const rows = await prisma.$queryRaw<

@@ -31,6 +31,7 @@ export interface ProductFilters {
   limit: number;
   search?: string;
   lowStockOnly?: boolean;
+  categoryId?: number;
 }
 
 export interface ProductListItem {
