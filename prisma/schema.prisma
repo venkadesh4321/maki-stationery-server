@@ -14,7 +14,15 @@ enum Role {
 
 enum StockMovementType {
   PURCHASE_IN
+  PURCHASE_ADJUSTMENT_IN
+  PURCHASE_ADJUSTMENT_OUT
+  PURCHASE_CANCEL_OUT
   SALE_OUT
+}
+
+enum PurchaseStatus {
+  ACTIVE
+  CANCELLED
 }
 
 enum PaymentMode {
@@ -35,8 +43,9 @@ model User {
   createdById  Int?
   createdBy    User?    @relation("UserCreatedUsers", fields: [createdById], references: [id])
   createdUsers User[]   @relation("UserCreatedUsers")
-  purchases    Purchase[] @relation("UserPurchases")
-  sales        Sale[]     @relation("UserSales")
+  purchases         Purchase[] @relation("UserPurchases")
+  cancelledPurchases Purchase[] @relation("UserCancelledPurchases")
+  sales             Sale[]     @relation("UserSales")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -102,6 +111,11 @@ model Purchase {
   invoiceNo    String?
   purchaseDate DateTime       @default(now())
   totalCost    Decimal        @db.Decimal(14, 2)
+  status       PurchaseStatus @default(ACTIVE)
+  cancelledAt  DateTime?
+  cancelReason String?
+  cancelledById Int?
+  cancelledBy  User?          @relation("UserCancelledPurchases", fields: [cancelledById], references: [id])
   items        PurchaseItem[]
   movements    StockMovement[]
   createdById  Int
@@ -112,6 +126,8 @@ model Purchase {
   @@index([supplierId])
   @@index([purchaseDate])
   @@index([createdById])
+  @@index([status])
+  @@index([cancelledById])
 }
 
 model PurchaseItem {
