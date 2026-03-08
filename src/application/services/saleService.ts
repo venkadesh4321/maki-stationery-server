@@ -1,4 +1,4 @@
-import { PaymentMode, Prisma, StockMovementType } from '@prisma/client';
+import { PaymentMode, Prisma, SaleStatus, StockMovementType } from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
 import { HttpError } from '../../interfaces/http/middlewares/httpError';
 
@@ -290,6 +290,7 @@ export class SaleService {
     toDate?: string;
     paymentMode?: PaymentMode;
     createdById?: number;
+    status?: SaleStatus;
   }): Promise<{
     total: number;
     items: Array<{
@@ -299,6 +300,9 @@ export class SaleService {
       subtotal: string;
       discount: string;
       totalAmount: string;
+      status: SaleStatus;
+      cancelledAt: Date | null;
+      cancelReason: string | null;
       itemsCount: number;
       payment: {
         mode: PaymentMode;
@@ -321,6 +325,7 @@ export class SaleService {
           }
         : {}),
       ...(input.createdById ? { createdById: input.createdById } : {}),
+      ...(input.status ? { status: input.status } : {}),
       ...(input.paymentMode
         ? {
             payments: {
@@ -354,6 +359,9 @@ export class SaleService {
           subtotal: true,
           discount: true,
           totalAmount: true,
+          status: true,
+          cancelledAt: true,
+          cancelReason: true,
           createdBy: {
             select: {
               id: true,
@@ -389,6 +397,9 @@ export class SaleService {
         subtotal: row.subtotal.toString(),
         discount: row.discount.toString(),
         totalAmount: row.totalAmount.toString(),
+        status: row.status,
+        cancelledAt: row.cancelledAt,
+        cancelReason: row.cancelReason,
         itemsCount: row._count.items,
         payment: row.payments[0]
           ? {
@@ -408,6 +419,9 @@ export class SaleService {
     subtotal: string;
     discount: string;
     totalAmount: string;
+    status: SaleStatus;
+    cancelledAt: Date | null;
+    cancelReason: string | null;
     createdBy: {
       id: number;
       name: string;
@@ -437,6 +451,9 @@ export class SaleService {
         subtotal: true,
         discount: true,
         totalAmount: true,
+        status: true,
+        cancelledAt: true,
+        cancelReason: true,
         createdBy: {
           select: {
             id: true,
@@ -485,6 +502,9 @@ export class SaleService {
       subtotal: sale.subtotal.toString(),
       discount: sale.discount.toString(),
       totalAmount: sale.totalAmount.toString(),
+      status: sale.status,
+      cancelledAt: sale.cancelledAt,
+      cancelReason: sale.cancelReason,
       createdBy: sale.createdBy,
       payment: sale.payments[0]
         ? {
@@ -503,5 +523,80 @@ export class SaleService {
         lineTotal: item.lineTotal.toString(),
       })),
     };
+  }
+
+  async cancelSale(saleId: number, input: { reason?: string }, cancelledById: number): Promise<{
+    id: number;
+    invoiceNo: string;
+    status: SaleStatus;
+    cancelledAt: Date | null;
+    cancelReason: string | null;
+  }> {
+    return prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findUnique({
+        where: { id: saleId },
+        select: {
+          id: true,
+          invoiceNo: true,
+          status: true,
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              quantity: true,
+            },
+          },
+        },
+      });
+
+      if (!sale) {
+        throw HttpError.notFound('Sale not found');
+      }
+
+      if (sale.status === SaleStatus.CANCELLED) {
+        throw HttpError.badRequest('Sale is already cancelled');
+      }
+
+      for (const item of sale.items) {
+        const updatedProduct = await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stockQuantity: { increment: item.quantity },
+          },
+          select: {
+            stockQuantity: true,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            saleId: sale.id,
+            saleItemId: item.id,
+            movementType: StockMovementType.SALE_CANCEL_IN,
+            quantity: item.quantity,
+            balanceAfter: updatedProduct.stockQuantity,
+            reference: `${sale.invoiceNo}-CANCEL`,
+          },
+        });
+      }
+
+      return tx.sale.update({
+        where: { id: sale.id },
+        data: {
+          status: SaleStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancelReason: input.reason?.trim() || null,
+          cancelledById,
+        },
+        select: {
+          id: true,
+          invoiceNo: true,
+          status: true,
+          cancelledAt: true,
+          cancelReason: true,
+        },
+      });
+    });
   }
 }

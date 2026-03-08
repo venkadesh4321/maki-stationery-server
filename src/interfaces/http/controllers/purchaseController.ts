@@ -33,6 +33,9 @@ const listPurchasesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(10),
   supplierId: z.coerce.number().int().positive().optional(),
   status: z.enum(['ACTIVE', 'CANCELLED']).optional(),
+  invoiceNo: z.string().trim().min(1).max(100).optional(),
+  fromDate: z.string().date().optional(),
+  toDate: z.string().date().optional(),
 });
 
 const purchaseIdParamsSchema = z.object({
@@ -48,8 +51,16 @@ export const purchaseController = {
       throw HttpError.badRequest('Invalid query params');
     }
 
-    const { page, limit, supplierId, status } = parsed.data;
-    const result = await purchaseService.listPurchases({ page, limit, supplierId, status });
+    const { page, limit, supplierId, status, invoiceNo, fromDate, toDate } = parsed.data;
+    const result = await purchaseService.listPurchases({
+      page,
+      limit,
+      supplierId,
+      status,
+      invoiceNo,
+      fromDate,
+      toDate,
+    });
 
     res.status(StatusCodes.OK).json({
       data: result.items,

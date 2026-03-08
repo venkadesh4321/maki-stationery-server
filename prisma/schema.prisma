@@ -18,9 +18,15 @@ enum StockMovementType {
   PURCHASE_ADJUSTMENT_OUT
   PURCHASE_CANCEL_OUT
   SALE_OUT
+  SALE_CANCEL_IN
 }
 
 enum PurchaseStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum SaleStatus {
   ACTIVE
   CANCELLED
 }
@@ -46,6 +52,7 @@ model User {
   purchases         Purchase[] @relation("UserPurchases")
   cancelledPurchases Purchase[] @relation("UserCancelledPurchases")
   sales             Sale[]     @relation("UserSales")
+  cancelledSales    Sale[]     @relation("UserCancelledSales")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -154,6 +161,11 @@ model Sale {
   subtotal    Decimal    @db.Decimal(14, 2)
   discount    Decimal    @default(0) @db.Decimal(14, 2)
   totalAmount Decimal    @db.Decimal(14, 2)
+  status      SaleStatus @default(ACTIVE)
+  cancelledAt DateTime?
+  cancelReason String?
+  cancelledById Int?
+  cancelledBy User?      @relation("UserCancelledSales", fields: [cancelledById], references: [id])
   items       SaleItem[]
   payments    Payment[]
   movements   StockMovement[]
@@ -164,6 +176,8 @@ model Sale {
 
   @@index([saleDate])
   @@index([createdById])
+  @@index([status])
+  @@index([cancelledById])
 }
 
 model SaleItem {

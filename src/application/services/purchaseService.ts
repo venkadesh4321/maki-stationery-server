@@ -553,6 +553,9 @@ export class PurchaseService {
     limit: number;
     supplierId?: number;
     status?: PurchaseStatus;
+    invoiceNo?: string;
+    fromDate?: string;
+    toDate?: string;
   }): Promise<{
     total: number;
     items: Array<{
@@ -576,6 +579,22 @@ export class PurchaseService {
     const where: Prisma.PurchaseWhereInput = {
       ...(input.supplierId ? { supplierId: input.supplierId } : {}),
       ...(input.status ? { status: input.status } : {}),
+      ...(input.invoiceNo
+        ? {
+            invoiceNo: {
+              contains: input.invoiceNo.trim(),
+              mode: 'insensitive',
+            },
+          }
+        : {}),
+      ...((input.fromDate || input.toDate)
+        ? {
+            purchaseDate: {
+              ...(input.fromDate ? { gte: new Date(`${input.fromDate}T00:00:00.000Z`) } : {}),
+              ...(input.toDate ? { lte: new Date(`${input.toDate}T23:59:59.999Z`) } : {}),
+            },
+          }
+        : {}),
     };
 
     const [total, rows] = await prisma.$transaction([

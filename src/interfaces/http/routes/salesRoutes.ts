@@ -8,6 +8,7 @@ const router = Router();
 
 router.get('/', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.list));
 router.get('/:id', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.getById));
+router.post('/:id/cancel', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.cancel));
 router.post('/checkout', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(saleController.checkout));
 
 export default router;

@@ -58,7 +58,8 @@ export const analyticsService = {
             INNER JOIN "Product" p ON p.id = si."productId"
             GROUP BY si."saleId"
           ) c ON c."saleId" = s.id
-          WHERE s."saleDate" >= ${startOfToday}
+          WHERE s."status" = 'ACTIVE'
+            AND s."saleDate" >= ${startOfToday}
             AND s."saleDate" <= ${endOfToday}
         `),
         prisma.$queryRaw<Array<{ sales: number; profit: number }>>(Prisma.sql`
@@ -74,7 +75,8 @@ export const analyticsService = {
             INNER JOIN "Product" p ON p.id = si."productId"
             GROUP BY si."saleId"
           ) c ON c."saleId" = s.id
-          WHERE s."saleDate" >= ${startOfMonth}
+          WHERE s."status" = 'ACTIVE'
+            AND s."saleDate" >= ${startOfMonth}
             AND s."saleDate" <= ${endOfMonth}
         `),
         prisma.$queryRaw<Array<{ value: number }>>(Prisma.sql`
@@ -103,7 +105,8 @@ export const analyticsService = {
             INNER JOIN "Product" p ON p.id = si."productId"
             GROUP BY si."saleId"
           ) c ON c."saleId" = s.id
-          WHERE s."saleDate" >= ${startOfMonth}
+          WHERE s."status" = 'ACTIVE'
+            AND s."saleDate" >= ${startOfMonth}
             AND s."saleDate" <= ${endOfMonth}
           GROUP BY CEIL(EXTRACT(DAY FROM s."saleDate") / 7.0)
           ORDER BY CEIL(EXTRACT(DAY FROM s."saleDate") / 7.0)
@@ -113,7 +116,8 @@ export const analyticsService = {
             TO_CHAR(DATE_TRUNC('hour', s."saleDate"), 'HH24:00') AS hour,
             COALESCE(SUM(s."totalAmount"), 0)::double precision AS sales
           FROM "Sale" s
-          WHERE s."saleDate" >= ${startOfToday}
+          WHERE s."status" = 'ACTIVE'
+            AND s."saleDate" >= ${startOfToday}
             AND s."saleDate" <= ${endOfToday}
           GROUP BY DATE_TRUNC('hour', s."saleDate")
           ORDER BY DATE_TRUNC('hour', s."saleDate")
@@ -141,7 +145,8 @@ export const analyticsService = {
           FROM "Sale" s
           INNER JOIN "SaleItem" si ON si."saleId" = s.id
           INNER JOIN "Product" pr ON pr.id = si."productId"
-          WHERE s."saleDate" >= ${startOfToday}
+          WHERE s."status" = 'ACTIVE'
+            AND s."saleDate" >= ${startOfToday}
             AND s."saleDate" <= ${endOfToday}
           GROUP BY pr.id, pr.name
           ORDER BY sold DESC, revenue DESC
@@ -180,7 +185,8 @@ export const analyticsService = {
       FROM "Sale" s
       INNER JOIN "SaleItem" si ON si."saleId" = s.id
       INNER JOIN "Product" pr ON pr.id = si."productId"
-      WHERE s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+      WHERE s."status" = 'ACTIVE'
+        AND s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
         AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
       GROUP BY DATE(s."saleDate")
       ORDER BY DATE(s."saleDate") ASC
@@ -204,7 +210,8 @@ export const analyticsService = {
       FROM "Sale" s
       INNER JOIN "SaleItem" si ON si."saleId" = s.id
       INNER JOIN "Product" pr ON pr.id = si."productId"
-      WHERE s."saleDate" >= ${from}
+      WHERE s."status" = 'ACTIVE'
+        AND s."saleDate" >= ${from}
         AND s."saleDate" < ${to}
       GROUP BY DATE_TRUNC('month', s."saleDate")
       ORDER BY DATE_TRUNC('month', s."saleDate") ASC
@@ -230,7 +237,8 @@ export const analyticsService = {
       FROM "Sale" s
       INNER JOIN "SaleItem" si ON si."saleId" = s.id
       INNER JOIN "Product" pr ON pr.id = si."productId"
-      WHERE s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+      WHERE s."status" = 'ACTIVE'
+        AND s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
         AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
       GROUP BY pr.id, pr.name
       ORDER BY profit DESC
@@ -256,7 +264,8 @@ export const analyticsService = {
       INNER JOIN "SaleItem" si ON si."saleId" = s.id
       INNER JOIN "Product" pr ON pr.id = si."productId"
       INNER JOIN "Category" c ON c.id = pr."categoryId"
-      WHERE s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+      WHERE s."status" = 'ACTIVE'
+        AND s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
         AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
       GROUP BY c.id, c.name
       ORDER BY profit DESC
