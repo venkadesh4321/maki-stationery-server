@@ -225,6 +225,7 @@ model StockMovement {
   saleItem       SaleItem?         @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
   movementType   StockMovementType
   quantity       Int
+  unitPrice      Decimal?          @db.Decimal(12, 2)
   balanceAfter   Int
   reference      String?
   note           String?

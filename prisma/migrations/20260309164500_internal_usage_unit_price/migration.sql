@@ -1,0 +1,2 @@
+ALTER TABLE "StockMovement"
+ADD COLUMN IF NOT EXISTS "unitPrice" DECIMAL(12,2);

@@ -25,6 +25,7 @@ export class StoreUseService {
     quantity: number;
     type: 'INTERNAL_USE';
     note: string | null;
+    unitPrice: string;
     date: Date;
     balanceAfter: number;
   }> {
@@ -35,7 +36,7 @@ export class StoreUseService {
     const created = await prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({
         where: { id: input.productId, deletedAt: null },
-        select: { id: true, name: true, stockQuantity: true },
+        select: { id: true, name: true, stockQuantity: true, buyingPrice: true },
       });
 
       if (!product) {
@@ -57,6 +58,7 @@ export class StoreUseService {
           productId: product.id,
           movementType: StockMovementType.INTERNAL_USE,
           quantity: -input.quantity,
+          unitPrice: product.buyingPrice,
           balanceAfter: updated.stockQuantity,
           reference: 'STORE_USE',
           note: input.note,
@@ -66,6 +68,7 @@ export class StoreUseService {
           id: true,
           quantity: true,
           note: true,
+          unitPrice: true,
           createdAt: true,
           balanceAfter: true,
         },
@@ -78,6 +81,7 @@ export class StoreUseService {
         quantity: movement.quantity,
         type: 'INTERNAL_USE' as const,
         note: movement.note,
+        unitPrice: movement.unitPrice?.toString() ?? '0.00',
         date: movement.createdAt,
         balanceAfter: movement.balanceAfter,
       };
@@ -95,6 +99,7 @@ export class StoreUseService {
       quantity: number;
       type: 'INTERNAL_USE';
       note: string | null;
+      unitPrice: string;
       date: Date;
       balanceAfter: number;
     }>;
@@ -124,6 +129,7 @@ export class StoreUseService {
           productId: true,
           quantity: true,
           note: true,
+          unitPrice: true,
           createdAt: true,
           balanceAfter: true,
           product: {
@@ -144,6 +150,7 @@ export class StoreUseService {
         quantity: row.quantity,
         type: 'INTERNAL_USE' as const,
         note: row.note,
+        unitPrice: row.unitPrice?.toString() ?? '0.00',
         date: row.createdAt,
         balanceAfter: row.balanceAfter,
       })),
