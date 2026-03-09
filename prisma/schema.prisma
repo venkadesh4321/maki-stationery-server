@@ -19,6 +19,7 @@ enum StockMovementType {
   PURCHASE_CANCEL_OUT
   SALE_OUT
   SALE_CANCEL_IN
+  INTERNAL_USE
 }
 
 enum PurchaseStatus {
@@ -226,6 +227,7 @@ model StockMovement {
   quantity       Int
   balanceAfter   Int
   reference      String?
+  note           String?
   createdAt      DateTime          @default(now())
 
   @@index([productId, createdAt])

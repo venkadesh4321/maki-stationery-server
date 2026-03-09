@@ -315,7 +315,7 @@ export const analyticsService = {
       SELECT
         p.id AS "productId",
         p.name AS "productName",
-        COALESCE(SUM(sm.quantity), 0)::int AS "movedQuantity",
+        COALESCE(SUM(ABS(sm.quantity)), 0)::int AS "movedQuantity",
         p."stockQuantity" AS "currentStock"
       FROM "Product" p
       INNER JOIN "StockMovement" sm ON sm."productId" = p.id
