@@ -148,8 +148,8 @@ export class StoreUseService {
         FROM "StockMovement"
         WHERE "movementType" = ${StockMovementType.INTERNAL_USE}::"StockMovementType"
         ${input.productId ? Prisma.sql`AND "productId" = ${input.productId}` : Prisma.empty}
-        ${input.fromDate ? Prisma.sql`AND "createdAt" >= ${new Date(`${input.fromDate}T00:00:00.000Z`)}` : Prisma.empty}
-        ${input.toDate ? Prisma.sql`AND "createdAt" <= ${new Date(`${input.toDate}T23:59:59.999Z`)}` : Prisma.empty}
+        ${input.fromDate ? Prisma.sql`AND "createdAt" >= ${input.fromDate}::date` : Prisma.empty}
+        ${input.toDate ? Prisma.sql`AND "createdAt" < (${input.toDate}::date + INTERVAL '1 day')` : Prisma.empty}
       `,
     );
     const totalValue = Number(totalValueRows[0]?.total ?? 0);
