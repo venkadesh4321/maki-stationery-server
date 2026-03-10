@@ -53,6 +53,9 @@ export const storeUseController = {
 
     res.status(StatusCodes.OK).json({
       data: result.items,
+      summary: {
+        totalValue: result.totalValue,
+      },
       pagination: {
         page,
         limit,

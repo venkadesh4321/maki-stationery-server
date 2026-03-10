@@ -92,6 +92,7 @@ export class StoreUseService {
 
   async listStoreUse(input: ListStoreUseInput): Promise<{
     total: number;
+    totalValue: number;
     items: Array<{
       id: number;
       productId: number;
@@ -141,8 +142,21 @@ export class StoreUseService {
       }),
     ]);
 
+    const totalValueRows = await prisma.$queryRaw<{ total: Prisma.Decimal | number | string }[]>(
+      Prisma.sql`
+        SELECT COALESCE(SUM(ABS("quantity") * COALESCE("unitPrice", 0)), 0) AS total
+        FROM "StockMovement"
+        WHERE "movementType" = ${StockMovementType.INTERNAL_USE}::"StockMovementType"
+        ${input.productId ? Prisma.sql`AND "productId" = ${input.productId}` : Prisma.empty}
+        ${input.fromDate ? Prisma.sql`AND "createdAt" >= ${new Date(`${input.fromDate}T00:00:00.000Z`)}` : Prisma.empty}
+        ${input.toDate ? Prisma.sql`AND "createdAt" <= ${new Date(`${input.toDate}T23:59:59.999Z`)}` : Prisma.empty}
+      `,
+    );
+    const totalValue = Number(totalValueRows[0]?.total ?? 0);
+
     return {
       total,
+      totalValue,
       items: rows.map((row) => ({
         id: row.id,
         productId: row.productId,
