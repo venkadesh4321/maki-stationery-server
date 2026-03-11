@@ -5,7 +5,7 @@ import {
   ProductListResult,
   ProductRepository,
 } from '../../domain/repositories/productRepository';
-import { HttpError } from '../../interfaces/http/middlewares/httpError';
+import { HttpError } from '../errors/httpError';
 
 interface CreateProductPayload {
   name: string;

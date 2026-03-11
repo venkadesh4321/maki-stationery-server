@@ -1,7 +1,7 @@
 import { Role } from '@prisma/client';
 import { authService } from './authService';
 import { UserRepository } from '../../domain/repositories/userRepository';
-import { HttpError } from '../../interfaces/http/middlewares/httpError';
+import { HttpError } from '../errors/httpError';
 
 interface AuthResult {
   accessToken: string;

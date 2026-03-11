@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { StoreUseService } from '../../../application/services/storeUseService';
-import { HttpError } from '../middlewares/httpError';
+import { HttpError } from '../../../application/errors/httpError';
 
 const createStoreUseSchema = z.object({
   productId: z.number().int().positive(),

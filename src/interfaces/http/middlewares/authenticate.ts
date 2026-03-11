@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { authService } from '../../../application/services/authService';
-import { HttpError } from './httpError';
+import { HttpError } from '../../../application/errors/httpError';
 
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;

@@ -1,6 +1,6 @@
 import { Prisma, PurchaseStatus, StockMovementType } from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
-import { HttpError } from '../../interfaces/http/middlewares/httpError';
+import { HttpError } from '../errors/httpError';
 
 interface PurchaseItemInput {
   productId: number;

@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 import { z } from 'zod';
 import { loginUser, registerUser } from '../../../application/services/authModuleService';
 import { PrismaUserRepository } from '../../../infrastructure/repositories/prismaUserRepository';
-import { HttpError } from '../middlewares/httpError';
+import { HttpError } from '../../../application/errors/httpError';
 
 const loginSchema = z.object({
   email: z.string().email(),

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { SaleService } from '../../../application/services/saleService';
-import { HttpError } from '../middlewares/httpError';
+import { HttpError } from '../../../application/errors/httpError';
 
 const checkoutSchema = z.object({
   items: z

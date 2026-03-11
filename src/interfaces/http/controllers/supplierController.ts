@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { prisma } from '../../../infrastructure/db/prisma';
-import { HttpError } from '../middlewares/httpError';
+import { HttpError } from '../../../application/errors/httpError';
 
 const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(150),
