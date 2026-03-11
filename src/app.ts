@@ -1,10 +1,10 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import routes from './interfaces/http/routes';
-import { requestLogger } from './interfaces/http/middlewares/logging';
-import { notFoundHandler } from './interfaces/http/middlewares/notFound';
-import { errorHandler } from './interfaces/http/middlewares/errorHandler';
+import routes from './presentation/http/routes';
+import { requestLogger } from './presentation/http/middlewares/logging';
+import { notFoundHandler } from './presentation/http/middlewares/notFound';
+import { errorHandler } from './presentation/http/middlewares/errorHandler';
 import { env } from './infrastructure/config/env';
 
 export const app = express();

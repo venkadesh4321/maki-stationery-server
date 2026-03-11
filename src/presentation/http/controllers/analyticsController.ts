@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { analyticsService } from '../../../application/services/analyticsService';
-import { HttpError } from '../../../application/errors/httpError';
+import { HttpError } from '../../../shared/errors/httpError';
 
 const dateRangeSchema = z.object({
   from: z.string().datetime().optional(),

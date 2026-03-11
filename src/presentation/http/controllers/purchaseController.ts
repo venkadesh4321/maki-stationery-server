@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { PurchaseService } from '../../../application/services/purchaseService';
-import { HttpError } from '../../../application/errors/httpError';
+import { HttpError } from '../../../shared/errors/httpError';
 
 const purchaseItemSchema = z.object({
   productId: z.number().int().positive(),

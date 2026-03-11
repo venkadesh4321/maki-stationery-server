@@ -5,7 +5,8 @@ import {
   ProductListResult,
   ProductRepository,
 } from '../../domain/repositories/productRepository';
-import { HttpError } from '../errors/httpError';
+import { HttpError } from '../../shared/errors/httpError';
+import { toDecimal } from '../../shared/utils/decimal';
 
 interface CreateProductPayload {
   name: string;
@@ -29,10 +30,6 @@ interface UpdateProductPayload {
   minimumStockLevel?: number;
   barcode?: string;
   imageUrl?: string;
-}
-
-function toDecimal(value: number): Prisma.Decimal {
-  return new Prisma.Decimal(value.toFixed(2));
 }
 
 function validatePricing(buyingPrice: number, mrp: number, sellingPrice: number): void {

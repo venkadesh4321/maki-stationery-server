@@ -1,6 +1,6 @@
 import { Prisma, StockMovementType } from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
-import { HttpError } from '../errors/httpError';
+import { HttpError } from '../../shared/errors/httpError';
 
 interface CreateStoreUseInput {
   productId: number;

@@ -3,7 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { ProductService } from '../../../application/services/productService';
 import { PrismaProductRepository } from '../../../infrastructure/repositories/prismaProductRepository';
-import { HttpError } from '../../../application/errors/httpError';
+import { HttpError } from '../../../shared/errors/httpError';
 
 const createProductSchema = z.object({
   name: z.string().min(2).max(200),

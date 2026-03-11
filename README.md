@@ -28,25 +28,29 @@
 │   │   │   └── logger.ts
 │   │   └── repositories
 │   │       └── prismaUserRepository.ts
-│   └── interfaces
-│       └── http
-│           ├── controllers
-│           │   ├── authController.ts
-│           │   └── userController.ts
-│           ├── middlewares
-│           │   ├── asyncHandler.ts
-│           │   ├── authenticate.ts
-│           │   ├── authorize.ts
-│           │   ├── errorHandler.ts
-│           │   ├── httpError.ts
-│           │   ├── logging.ts
-│           │   └── notFound.ts
-│           ├── routes
-│           │   ├── authRoutes.ts
-│           │   ├── index.ts
-│           │   └── userRoutes.ts
-│           └── types
-│               └── express.d.ts
+│   ├── presentation
+│   │   └── http
+│   │       ├── controllers
+│   │       │   ├── authController.ts
+│   │       │   └── userController.ts
+│   │       ├── middlewares
+│   │       │   ├── asyncHandler.ts
+│   │       │   ├── authenticate.ts
+│   │       │   ├── authorize.ts
+│   │       │   ├── errorHandler.ts
+│   │       │   ├── logging.ts
+│   │       │   └── notFound.ts
+│   │       ├── routes
+│   │       │   ├── authRoutes.ts
+│   │       │   ├── index.ts
+│   │       │   └── userRoutes.ts
+│   │       └── types
+│   │           └── express.d.ts
+│   └── shared
+│       ├── errors
+│       │   └── httpError.ts
+│       └── utils
+│           └── decimal.ts
 ├── .env.example
 ├── package.json
 └── tsconfig.json

@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { Role } from '../../../domain/entities/user';
-import { HttpError } from '../../../application/errors/httpError';
+import { HttpError } from '../../../shared/errors/httpError';
 
 export function authorize(allowedRoles: Role[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {

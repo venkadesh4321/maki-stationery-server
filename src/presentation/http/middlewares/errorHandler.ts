@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { HttpError } from '../../../application/errors/httpError';
+import { HttpError } from '../../../shared/errors/httpError';
 import { logger } from '../../../infrastructure/logger/logger';
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {

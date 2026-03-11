@@ -1,6 +1,6 @@
 import { authService } from './authService';
 import { UserRepository } from '../../domain/repositories/userRepository';
-import { HttpError } from '../errors/httpError';
+import { HttpError } from '../../shared/errors/httpError';
 
 export async function loginUser(
   email: string,

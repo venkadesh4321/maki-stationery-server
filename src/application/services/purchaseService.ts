@@ -1,6 +1,7 @@
 import { Prisma, PurchaseStatus, StockMovementType } from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
-import { HttpError } from '../errors/httpError';
+import { HttpError } from '../../shared/errors/httpError';
+import { toDecimal } from '../../shared/utils/decimal';
 
 interface PurchaseItemInput {
   productId: number;
@@ -20,10 +21,6 @@ interface UpdatePurchaseInput {
   invoiceNo?: string;
   purchaseDate?: string;
   items: PurchaseItemInput[];
-}
-
-function toDecimal(value: number): Prisma.Decimal {
-  return new Prisma.Decimal(value.toFixed(2));
 }
 
 function calculateProfitMargin(buyingPrice: Prisma.Decimal, sellingPrice: Prisma.Decimal): Prisma.Decimal {

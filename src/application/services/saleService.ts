@@ -1,6 +1,7 @@
 import { PaymentMode, Prisma, SaleStatus, StockMovementType } from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
-import { HttpError } from '../errors/httpError';
+import { HttpError } from '../../shared/errors/httpError';
+import { toDecimal } from '../../shared/utils/decimal';
 
 interface SaleItemInput {
   productId: number;
@@ -13,10 +14,6 @@ interface CheckoutInput {
   discount: number;
   totalAmount: number;
   paymentMode: PaymentMode;
-}
-
-function toDecimal(value: number): Prisma.Decimal {
-  return new Prisma.Decimal(value.toFixed(2));
 }
 
 function buildFinalInvoiceNo(saleId: number): string {
