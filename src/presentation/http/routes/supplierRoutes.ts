@@ -8,5 +8,6 @@ const router = Router();
 
 router.get('/', authenticate, authorize(['ADMIN', 'STAFF']), asyncHandler(supplierController.list));
 router.post('/', authenticate, authorize(['ADMIN']), asyncHandler(supplierController.create));
+router.patch('/:id', authenticate, authorize(['ADMIN']), asyncHandler(supplierController.update));
 
 export default router;
