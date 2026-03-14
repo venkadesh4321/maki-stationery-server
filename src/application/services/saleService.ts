@@ -1,4 +1,11 @@
-import { PaymentMode, Prisma, SalePaymentStatus, SaleStatus, StockMovementType } from '@prisma/client';
+import {
+  CustomerLedgerEntryType,
+  PaymentMode,
+  Prisma,
+  SalePaymentStatus,
+  SaleStatus,
+  StockMovementType,
+} from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
 import { HttpError } from '../../shared/errors/httpError';
 import { toDecimal } from '../../shared/utils/decimal';
@@ -17,6 +24,7 @@ interface CheckoutInput {
   paymentMode?: PaymentMode;
   paidAmount?: number;
   paymentReference?: string;
+  customerId?: number;
 }
 
 function buildFinalInvoiceNo(saleId: number): string {
@@ -69,6 +77,7 @@ export class SaleService {
     amountPaid: string;
     amountDue: string;
     paymentStatus: SalePaymentStatus;
+    customer: { id: number; name: string } | null;
     payment: {
       mode: PaymentMode;
       amount: string;
@@ -209,6 +218,22 @@ export class SaleService {
         amountDue,
       }).paymentStatus;
 
+      let customer = null as { id: number; name: string } | null;
+      if (input.customerId) {
+        const customerRow = await tx.customer.findFirst({
+          where: { id: input.customerId, deletedAt: null },
+          select: { id: true, name: true },
+        });
+        if (!customerRow) {
+          throw HttpError.badRequest('Invalid customer');
+        }
+        customer = customerRow;
+      }
+
+      if ((input.paymentType === 'PARTIAL' || input.paymentType === 'CREDIT') && !customer) {
+        throw HttpError.badRequest('Customer is required for partial or credit sales');
+      }
+
       const createdSale = await tx.sale.create({
         data: {
           invoiceNo: `TMP-${Date.now()}-${createdById}-${Math.floor(Math.random() * 100000)}`,
@@ -218,6 +243,7 @@ export class SaleService {
           amountPaid,
           amountDue,
           paymentStatus,
+          customerId: customer?.id ?? null,
           createdById,
         },
       });
@@ -266,6 +292,23 @@ export class SaleService {
             amount: amountPaid,
             reference: paymentReference,
           },
+        });
+      }
+
+      if (amountDue.gt(0) && customer) {
+        await tx.customerLedgerEntry.create({
+          data: {
+            customerId: customer.id,
+            saleId: createdSale.id,
+            type: CustomerLedgerEntryType.SALE_CREDIT,
+            amount: amountDue,
+            createdById,
+          },
+        });
+
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: { balance: { increment: amountDue } },
         });
       }
 
@@ -343,6 +386,12 @@ export class SaleService {
               paidAt: 'desc',
             },
           },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       });
 
@@ -364,6 +413,7 @@ export class SaleService {
         amountPaid: summary.amountPaid.toString(),
         amountDue: summary.amountDue.toString(),
         paymentStatus: summary.paymentStatus,
+        customer: finalSale.customer,
         payment: payment
           ? {
               mode: payment.mode,
@@ -405,6 +455,7 @@ export class SaleService {
       amountPaid: string;
       amountDue: string;
       paymentStatus: SalePaymentStatus;
+      customer: { id: number; name: string } | null;
       status: SaleStatus;
       cancelledAt: Date | null;
       cancelReason: string | null;
@@ -487,6 +538,12 @@ export class SaleService {
               paidAt: 'desc',
             },
           },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           _count: {
             select: {
               items: true,
@@ -517,6 +574,7 @@ export class SaleService {
           amountPaid: summary.amountPaid.toString(),
           amountDue: summary.amountDue.toString(),
           paymentStatus: summary.paymentStatus,
+          customer: row.customer,
           status: row.status,
           cancelledAt: row.cancelledAt,
           cancelReason: row.cancelReason,
@@ -543,6 +601,7 @@ export class SaleService {
     amountPaid: string;
     amountDue: string;
     paymentStatus: SalePaymentStatus;
+    customer: { id: number; name: string } | null;
     status: SaleStatus;
     cancelledAt: Date | null;
     cancelReason: string | null;
@@ -600,6 +659,12 @@ export class SaleService {
             paidAt: 'desc',
           },
         },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         items: {
           orderBy: { id: 'asc' },
           select: {
@@ -640,6 +705,7 @@ export class SaleService {
       amountPaid: summary.amountPaid.toString(),
       amountDue: summary.amountDue.toString(),
       paymentStatus: summary.paymentStatus,
+      customer: sale.customer,
       status: sale.status,
       cancelledAt: sale.cancelledAt,
       cancelReason: sale.cancelReason,
@@ -677,6 +743,8 @@ export class SaleService {
           id: true,
           invoiceNo: true,
           status: true,
+          amountDue: true,
+          customerId: true,
           items: {
             select: {
               id: true,
@@ -716,6 +784,23 @@ export class SaleService {
             balanceAfter: updatedProduct.stockQuantity,
             reference: `${sale.invoiceNo}-CANCEL`,
           },
+        });
+      }
+
+      if (sale.customerId && sale.amountDue && sale.amountDue.gt(0)) {
+        await tx.customerLedgerEntry.create({
+          data: {
+            customerId: sale.customerId,
+            saleId: sale.id,
+            type: CustomerLedgerEntryType.SALE_CANCEL,
+            amount: sale.amountDue,
+            createdById: cancelledById,
+          },
+        });
+
+        await tx.customer.update({
+          where: { id: sale.customerId },
+          data: { balance: { decrement: sale.amountDue } },
         });
       }
 

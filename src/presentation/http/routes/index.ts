@@ -2,6 +2,7 @@ import { Router } from 'express';
 import analyticsRoutes from './analyticsRoutes';
 import authRoutes from './authRoutes';
 import categoryRoutes from './categoryRoutes';
+import customerRoutes from './customerRoutes';
 import productRoutes from './productRoutes';
 import purchaseRoutes from './purchaseRoutes';
 import salesRoutes from './salesRoutes';
@@ -18,6 +19,7 @@ router.get('/health', (_req, res) => {
 router.use('/auth', authRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/customers', customerRoutes);
 router.use('/products', productRoutes);
 router.use('/purchases', purchaseRoutes);
 router.use('/sales', salesRoutes);

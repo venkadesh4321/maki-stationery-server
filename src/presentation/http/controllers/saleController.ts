@@ -4,23 +4,34 @@ import { z } from 'zod';
 import { SaleService } from '../../../application/services/saleService';
 import { HttpError } from '../../../shared/errors/httpError';
 
-const checkoutSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        productId: z.number().int().positive(),
-        quantity: z.number().int().positive(),
-      }),
-    )
-    .min(1),
-  subtotal: z.number().nonnegative(),
-  discount: z.number().nonnegative(),
-  totalAmount: z.number().nonnegative(),
-  paymentType: z.enum(['FULL', 'PARTIAL', 'CREDIT']),
-  paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
-  paidAmount: z.number().nonnegative().optional(),
-  paymentReference: z.string().trim().max(120).optional(),
-});
+const checkoutSchema = z
+  .object({
+    items: z
+      .array(
+        z.object({
+          productId: z.number().int().positive(),
+          quantity: z.number().int().positive(),
+        }),
+      )
+      .min(1),
+    subtotal: z.number().nonnegative(),
+    discount: z.number().nonnegative(),
+    totalAmount: z.number().nonnegative(),
+    paymentType: z.enum(['FULL', 'PARTIAL', 'CREDIT']),
+    paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
+    paidAmount: z.number().nonnegative().optional(),
+    paymentReference: z.string().trim().max(120).optional(),
+    customerId: z.number().int().positive().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if ((value.paymentType === 'PARTIAL' || value.paymentType === 'CREDIT') && !value.customerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Customer is required for partial or credit sales',
+        path: ['customerId'],
+      });
+    }
+  });
 
 const listSalesQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),

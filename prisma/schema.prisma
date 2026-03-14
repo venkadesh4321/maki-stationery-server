@@ -45,6 +45,13 @@ enum PaymentMode {
   BANK_TRANSFER
 }
 
+enum CustomerLedgerEntryType {
+  SALE_CREDIT
+  PAYMENT
+  SALE_CANCEL
+  ADJUSTMENT
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   name         String
@@ -60,12 +67,33 @@ model User {
   cancelledPurchases Purchase[] @relation("UserCancelledPurchases")
   sales             Sale[]     @relation("UserSales")
   cancelledSales    Sale[]     @relation("UserCancelledSales")
+  customerLedgerEntries CustomerLedgerEntry[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([role])
   @@index([isActive])
   @@index([createdById])
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  balance   Decimal  @default(0) @db.Decimal(14, 2)
+  sales     Sale[]
+  ledger    CustomerLedgerEntry[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([name])
+  @@index([phone])
+  @@index([email])
+  @@index([deletedAt])
 }
 
 model Category {
@@ -172,6 +200,8 @@ model Sale {
   amountDue   Decimal    @default(0) @db.Decimal(14, 2)
   paymentStatus SalePaymentStatus @default(PAID)
   status      SaleStatus @default(ACTIVE)
+  customerId  Int?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
   cancelledAt DateTime?
   cancelReason String?
   cancelledById Int?
@@ -179,12 +209,14 @@ model Sale {
   items       SaleItem[]
   payments    Payment[]
   movements   StockMovement[]
+  customerLedgerEntries CustomerLedgerEntry[]
   createdById Int
   createdBy   User       @relation("UserSales", fields: [createdById], references: [id])
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   @@index([saleDate])
+  @@index([customerId])
   @@index([createdById])
   @@index([status])
   @@index([paymentStatus])
@@ -219,6 +251,26 @@ model Payment {
 
   @@index([saleId])
   @@index([mode, paidAt])
+}
+
+model CustomerLedgerEntry {
+  id          Int                   @id @default(autoincrement())
+  customerId  Int
+  customer    Customer              @relation(fields: [customerId], references: [id])
+  saleId      Int?
+  sale        Sale?                 @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  type        CustomerLedgerEntryType
+  amount      Decimal               @db.Decimal(14, 2)
+  paymentMode PaymentMode?
+  reference   String?
+  note        String?
+  createdById Int?
+  createdBy   User?                 @relation(fields: [createdById], references: [id])
+  createdAt   DateTime              @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([saleId])
+  @@index([type])
 }
 
 model StockMovement {
