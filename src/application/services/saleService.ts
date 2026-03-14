@@ -1,4 +1,4 @@
-import { PaymentMode, Prisma, SaleStatus, StockMovementType } from '@prisma/client';
+import { PaymentMode, Prisma, SalePaymentStatus, SaleStatus, StockMovementType } from '@prisma/client';
 import { prisma } from '../../infrastructure/db/prisma';
 import { HttpError } from '../../shared/errors/httpError';
 import { toDecimal } from '../../shared/utils/decimal';
@@ -13,11 +13,49 @@ interface CheckoutInput {
   subtotal: number;
   discount: number;
   totalAmount: number;
-  paymentMode: PaymentMode;
+  paymentType: 'FULL' | 'PARTIAL' | 'CREDIT';
+  paymentMode?: PaymentMode;
+  paidAmount?: number;
+  paymentReference?: string;
 }
 
 function buildFinalInvoiceNo(saleId: number): string {
   return `SAL-${saleId.toString().padStart(6, '0')}`;
+}
+
+function resolvePaymentSummary(input: {
+  totalAmount: Prisma.Decimal;
+  amountPaid: Prisma.Decimal;
+  amountDue: Prisma.Decimal;
+  latestPayment?: { amount: Prisma.Decimal } | null;
+}): { amountPaid: Prisma.Decimal; amountDue: Prisma.Decimal; paymentStatus: SalePaymentStatus } {
+  const total = input.totalAmount;
+  let amountPaid = input.amountPaid;
+  let amountDue = input.amountDue;
+
+  if (amountPaid.equals(0) && amountDue.equals(0) && !total.equals(0)) {
+    if (input.latestPayment) {
+      amountPaid = input.latestPayment.amount;
+      amountDue = total.sub(amountPaid).toDecimalPlaces(2);
+    } else {
+      amountPaid = new Prisma.Decimal(0);
+      amountDue = total;
+    }
+  }
+
+  if (amountDue.lessThan(0)) {
+    amountDue = new Prisma.Decimal(0);
+  }
+
+  if (total.equals(0) || amountDue.equals(0)) {
+    return { amountPaid, amountDue: new Prisma.Decimal(0), paymentStatus: SalePaymentStatus.PAID };
+  }
+
+  if (amountPaid.equals(0)) {
+    return { amountPaid, amountDue, paymentStatus: SalePaymentStatus.CREDIT };
+  }
+
+  return { amountPaid, amountDue, paymentStatus: SalePaymentStatus.PARTIAL };
 }
 
 export class SaleService {
@@ -28,10 +66,13 @@ export class SaleService {
     subtotal: string;
     discount: string;
     totalAmount: string;
+    amountPaid: string;
+    amountDue: string;
+    paymentStatus: SalePaymentStatus;
     payment: {
       mode: PaymentMode;
       amount: string;
-    };
+    } | null;
     items: Array<{
       id: number;
       productId: number;
@@ -124,12 +165,59 @@ export class SaleService {
         throw HttpError.badRequest('Total mismatch');
       }
 
+      const totalAmount = calculatedTotal;
+      let amountPaid = new Prisma.Decimal(0);
+      let paymentMode: PaymentMode | null = null;
+      let paymentReference: string | null = null;
+
+      if (input.paymentType === 'FULL') {
+        if (!input.paymentMode) {
+          throw HttpError.badRequest('Payment mode is required for full payment');
+        }
+        paymentMode = input.paymentMode;
+        paymentReference = input.paymentReference?.trim() || null;
+        amountPaid = totalAmount;
+      } else if (input.paymentType === 'PARTIAL') {
+        if (!input.paymentMode) {
+          throw HttpError.badRequest('Payment mode is required for partial payment');
+        }
+        const paidInput = toDecimal(input.paidAmount ?? 0);
+        if (paidInput.lte(0)) {
+          throw HttpError.badRequest('Paid amount must be greater than 0 for partial payment');
+        }
+        if (!totalAmount.equals(0) && paidInput.gte(totalAmount)) {
+          throw HttpError.badRequest('Paid amount must be less than total amount for partial payment');
+        }
+        paymentMode = input.paymentMode;
+        paymentReference = input.paymentReference?.trim() || null;
+        amountPaid = paidInput;
+      } else if (input.paymentType === 'CREDIT') {
+        if (input.paymentMode) {
+          throw HttpError.badRequest('Payment mode should not be provided for credit sales');
+        }
+        const paidInput = toDecimal(input.paidAmount ?? 0);
+        if (!paidInput.equals(0)) {
+          throw HttpError.badRequest('Paid amount must be 0 for credit sales');
+        }
+        amountPaid = new Prisma.Decimal(0);
+      }
+
+      const amountDue = totalAmount.sub(amountPaid).toDecimalPlaces(2);
+      const paymentStatus = resolvePaymentSummary({
+        totalAmount,
+        amountPaid,
+        amountDue,
+      }).paymentStatus;
+
       const createdSale = await tx.sale.create({
         data: {
           invoiceNo: `TMP-${Date.now()}-${createdById}-${Math.floor(Math.random() * 100000)}`,
           subtotal: calculatedSubtotal,
           discount,
-          totalAmount: calculatedTotal,
+          totalAmount,
+          amountPaid,
+          amountDue,
+          paymentStatus,
           createdById,
         },
       });
@@ -167,13 +255,19 @@ export class SaleService {
         });
       }
 
-      await tx.payment.create({
-        data: {
-          saleId: createdSale.id,
-          mode: input.paymentMode,
-          amount: calculatedTotal,
-        },
-      });
+      if (amountPaid.gt(0)) {
+        if (!paymentMode) {
+          throw HttpError.badRequest('Payment mode is required when a payment is recorded');
+        }
+        await tx.payment.create({
+          data: {
+            saleId: createdSale.id,
+            mode: paymentMode,
+            amount: amountPaid,
+            reference: paymentReference,
+          },
+        });
+      }
 
       for (const item of createdItems) {
         const stockUpdate = await tx.product.updateMany({
@@ -222,6 +316,9 @@ export class SaleService {
           subtotal: true,
           discount: true,
           totalAmount: true,
+          amountPaid: true,
+          amountDue: true,
+          paymentStatus: true,
           items: {
             select: {
               id: true,
@@ -250,9 +347,12 @@ export class SaleService {
       });
 
       const payment = finalSale.payments[0];
-      if (!payment) {
-        throw HttpError.internal('Payment record missing');
-      }
+      const summary = resolvePaymentSummary({
+        totalAmount: finalSale.totalAmount,
+        amountPaid: finalSale.amountPaid,
+        amountDue: finalSale.amountDue,
+        latestPayment: payment ? { amount: payment.amount } : null,
+      });
 
       return {
         id: finalSale.id,
@@ -261,10 +361,15 @@ export class SaleService {
         subtotal: finalSale.subtotal.toString(),
         discount: finalSale.discount.toString(),
         totalAmount: finalSale.totalAmount.toString(),
-        payment: {
-          mode: payment.mode,
-          amount: payment.amount.toString(),
-        },
+        amountPaid: summary.amountPaid.toString(),
+        amountDue: summary.amountDue.toString(),
+        paymentStatus: summary.paymentStatus,
+        payment: payment
+          ? {
+              mode: payment.mode,
+              amount: payment.amount.toString(),
+            }
+          : null,
         items: finalSale.items.map((saleItem) => ({
           id: saleItem.id,
           productId: saleItem.productId,
@@ -297,6 +402,9 @@ export class SaleService {
       subtotal: string;
       discount: string;
       totalAmount: string;
+      amountPaid: string;
+      amountDue: string;
+      paymentStatus: SalePaymentStatus;
       status: SaleStatus;
       cancelledAt: Date | null;
       cancelReason: string | null;
@@ -356,6 +464,9 @@ export class SaleService {
           subtotal: true,
           discount: true,
           totalAmount: true,
+          amountPaid: true,
+          amountDue: true,
+          paymentStatus: true,
           status: true,
           cancelledAt: true,
           cancelReason: true,
@@ -387,25 +498,38 @@ export class SaleService {
 
     return {
       total,
-      items: rows.map((row) => ({
-        id: row.id,
-        invoiceNo: row.invoiceNo,
-        saleDate: row.saleDate,
-        subtotal: row.subtotal.toString(),
-        discount: row.discount.toString(),
-        totalAmount: row.totalAmount.toString(),
-        status: row.status,
-        cancelledAt: row.cancelledAt,
-        cancelReason: row.cancelReason,
-        itemsCount: row._count.items,
-        payment: row.payments[0]
-          ? {
-              mode: row.payments[0].mode,
-              amount: row.payments[0].amount.toString(),
-            }
-          : null,
-        createdBy: row.createdBy,
-      })),
+      items: rows.map((row) => {
+        const payment = row.payments[0];
+        const summary = resolvePaymentSummary({
+          totalAmount: row.totalAmount,
+          amountPaid: row.amountPaid,
+          amountDue: row.amountDue,
+          latestPayment: payment ? { amount: payment.amount } : null,
+        });
+
+        return {
+          id: row.id,
+          invoiceNo: row.invoiceNo,
+          saleDate: row.saleDate,
+          subtotal: row.subtotal.toString(),
+          discount: row.discount.toString(),
+          totalAmount: row.totalAmount.toString(),
+          amountPaid: summary.amountPaid.toString(),
+          amountDue: summary.amountDue.toString(),
+          paymentStatus: summary.paymentStatus,
+          status: row.status,
+          cancelledAt: row.cancelledAt,
+          cancelReason: row.cancelReason,
+          itemsCount: row._count.items,
+          payment: payment
+            ? {
+                mode: payment.mode,
+                amount: payment.amount.toString(),
+              }
+            : null,
+          createdBy: row.createdBy,
+        };
+      }),
     };
   }
 
@@ -416,6 +540,9 @@ export class SaleService {
     subtotal: string;
     discount: string;
     totalAmount: string;
+    amountPaid: string;
+    amountDue: string;
+    paymentStatus: SalePaymentStatus;
     status: SaleStatus;
     cancelledAt: Date | null;
     cancelReason: string | null;
@@ -448,6 +575,9 @@ export class SaleService {
         subtotal: true,
         discount: true,
         totalAmount: true,
+        amountPaid: true,
+        amountDue: true,
+        paymentStatus: true,
         status: true,
         cancelledAt: true,
         cancelReason: true,
@@ -492,6 +622,14 @@ export class SaleService {
       throw HttpError.notFound('Sale not found');
     }
 
+    const payment = sale.payments[0];
+    const summary = resolvePaymentSummary({
+      totalAmount: sale.totalAmount,
+      amountPaid: sale.amountPaid,
+      amountDue: sale.amountDue,
+      latestPayment: payment ? { amount: payment.amount } : null,
+    });
+
     return {
       id: sale.id,
       invoiceNo: sale.invoiceNo,
@@ -499,16 +637,19 @@ export class SaleService {
       subtotal: sale.subtotal.toString(),
       discount: sale.discount.toString(),
       totalAmount: sale.totalAmount.toString(),
+      amountPaid: summary.amountPaid.toString(),
+      amountDue: summary.amountDue.toString(),
+      paymentStatus: summary.paymentStatus,
       status: sale.status,
       cancelledAt: sale.cancelledAt,
       cancelReason: sale.cancelReason,
       createdBy: sale.createdBy,
-      payment: sale.payments[0]
+      payment: payment
         ? {
-            mode: sale.payments[0].mode,
-            amount: sale.payments[0].amount.toString(),
-            paidAt: sale.payments[0].paidAt,
-            reference: sale.payments[0].reference,
+            mode: payment.mode,
+            amount: payment.amount.toString(),
+            paidAt: payment.paidAt,
+            reference: payment.reference,
           }
         : null,
       items: sale.items.map((item) => ({

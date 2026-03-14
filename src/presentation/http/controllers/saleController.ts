@@ -16,7 +16,10 @@ const checkoutSchema = z.object({
   subtotal: z.number().nonnegative(),
   discount: z.number().nonnegative(),
   totalAmount: z.number().nonnegative(),
-  paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']),
+  paymentType: z.enum(['FULL', 'PARTIAL', 'CREDIT']),
+  paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
+  paidAmount: z.number().nonnegative().optional(),
+  paymentReference: z.string().trim().max(120).optional(),
 });
 
 const listSalesQuerySchema = z.object({

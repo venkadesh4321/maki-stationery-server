@@ -32,6 +32,12 @@ enum SaleStatus {
   CANCELLED
 }
 
+enum SalePaymentStatus {
+  PAID
+  PARTIAL
+  CREDIT
+}
+
 enum PaymentMode {
   CASH
   CARD
@@ -162,6 +168,9 @@ model Sale {
   subtotal    Decimal    @db.Decimal(14, 2)
   discount    Decimal    @default(0) @db.Decimal(14, 2)
   totalAmount Decimal    @db.Decimal(14, 2)
+  amountPaid  Decimal    @default(0) @db.Decimal(14, 2)
+  amountDue   Decimal    @default(0) @db.Decimal(14, 2)
+  paymentStatus SalePaymentStatus @default(PAID)
   status      SaleStatus @default(ACTIVE)
   cancelledAt DateTime?
   cancelReason String?
@@ -178,6 +187,7 @@ model Sale {
   @@index([saleDate])
   @@index([createdById])
   @@index([status])
+  @@index([paymentStatus])
   @@index([cancelledById])
 }
 
