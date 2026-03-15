@@ -443,6 +443,8 @@ export class SaleService {
     paymentMode?: PaymentMode;
     createdById?: number;
     status?: SaleStatus;
+    categoryId?: number;
+    productId?: number;
   }): Promise<{
     total: number;
     items: Array<{
@@ -487,6 +489,16 @@ export class SaleService {
             payments: {
               some: {
                 mode: input.paymentMode,
+              },
+            },
+          }
+        : {}),
+      ...(input.categoryId || input.productId
+        ? {
+            items: {
+              some: {
+                ...(input.productId ? { productId: input.productId } : {}),
+                ...(input.categoryId ? { product: { categoryId: input.categoryId } } : {}),
               },
             },
           }

@@ -42,6 +42,8 @@ const listSalesQuerySchema = z.object({
   paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
   createdById: z.coerce.number().int().positive().optional(),
   status: z.enum(['ACTIVE', 'CANCELLED']).optional(),
+  categoryId: z.coerce.number().int().positive().optional(),
+  productId: z.coerce.number().int().positive().optional(),
 });
 
 const saleIdParamsSchema = z.object({
@@ -61,7 +63,8 @@ export const saleController = {
       throw HttpError.badRequest('Invalid query params');
     }
 
-    const { page, limit, invoiceNo, fromDate, toDate, paymentMode, createdById, status } = parsed.data;
+    const { page, limit, invoiceNo, fromDate, toDate, paymentMode, createdById, status, categoryId, productId } =
+      parsed.data;
     const result = await saleService.listSales({
       page,
       limit,
@@ -71,6 +74,8 @@ export const saleController = {
       paymentMode,
       createdById,
       status,
+      categoryId,
+      productId,
     });
 
     res.status(StatusCodes.OK).json({
