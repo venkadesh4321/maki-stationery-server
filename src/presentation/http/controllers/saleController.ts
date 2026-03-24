@@ -18,7 +18,7 @@ const checkoutSchema = z
     discount: z.number().nonnegative(),
     totalAmount: z.number().nonnegative(),
     paymentType: z.enum(['FULL', 'PARTIAL', 'CREDIT']),
-    paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
+    paymentMode: z.enum(['CASH', 'CARD', 'UPI']).optional(),
     paidAmount: z.number().nonnegative().optional(),
     paymentReference: z.string().trim().max(120).optional(),
     customerId: z.number().int().positive().optional(),
@@ -39,7 +39,8 @@ const listSalesQuerySchema = z.object({
   invoiceNo: z.string().trim().min(1).max(100).optional(),
   fromDate: z.string().date().optional(),
   toDate: z.string().date().optional(),
-  paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']).optional(),
+  paymentMode: z.enum(['CASH', 'CARD', 'UPI']).optional(),
+  paymentStatus: z.enum(['PAID', 'PARTIAL', 'CREDIT']).optional(),
   createdById: z.coerce.number().int().positive().optional(),
   status: z.enum(['ACTIVE', 'CANCELLED']).optional(),
   categoryId: z.coerce.number().int().positive().optional(),
@@ -63,7 +64,7 @@ export const saleController = {
       throw HttpError.badRequest('Invalid query params');
     }
 
-    const { page, limit, invoiceNo, fromDate, toDate, paymentMode, createdById, status, categoryId, productId } =
+    const { page, limit, invoiceNo, fromDate, toDate, paymentMode, paymentStatus, createdById, status, categoryId, productId } =
       parsed.data;
     const result = await saleService.listSales({
       page,
@@ -72,6 +73,7 @@ export const saleController = {
       fromDate,
       toDate,
       paymentMode,
+      paymentStatus,
       createdById,
       status,
       categoryId,

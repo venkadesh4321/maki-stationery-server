@@ -14,7 +14,7 @@ const createCustomerSchema = z.object({
 
 const paymentSchema = z.object({
   amount: z.number().positive(),
-  paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'BANK_TRANSFER']),
+  paymentMode: z.enum(['CASH', 'CARD', 'UPI']),
   reference: z.string().trim().max(120).optional(),
   note: z.string().trim().max(200).optional(),
 });

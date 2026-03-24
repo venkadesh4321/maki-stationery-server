@@ -42,7 +42,6 @@ enum PaymentMode {
   CASH
   CARD
   UPI
-  BANK_TRANSFER
 }
 
 enum CustomerLedgerEntryType {

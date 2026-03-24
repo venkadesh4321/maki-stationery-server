@@ -441,6 +441,7 @@ export class SaleService {
     fromDate?: string;
     toDate?: string;
     paymentMode?: PaymentMode;
+    paymentStatus?: SalePaymentStatus;
     createdById?: number;
     status?: SaleStatus;
     categoryId?: number;
@@ -493,6 +494,7 @@ export class SaleService {
             },
           }
         : {}),
+      ...(input.paymentStatus ? { paymentStatus: input.paymentStatus } : {}),
       ...(input.categoryId || input.productId
         ? {
             items: {
