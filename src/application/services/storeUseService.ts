@@ -170,4 +170,127 @@ export class StoreUseService {
       })),
     };
   }
+
+  async updateStoreUse(
+    id: number,
+    input: CreateStoreUseInput,
+  ): Promise<{
+    id: number;
+    productId: number;
+    productName: string;
+    quantity: number;
+    type: 'INTERNAL_USE';
+    note: string | null;
+    unitPrice: string;
+    date: Date;
+    balanceAfter: number;
+  }> {
+    if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+      throw HttpError.badRequest('Quantity must be a positive integer');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.stockMovement.findFirst({
+        where: { id, movementType: StockMovementType.INTERNAL_USE },
+        select: {
+          id: true,
+          productId: true,
+          quantity: true,
+          createdAt: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              stockQuantity: true,
+            },
+          },
+        },
+      });
+
+      if (!existing) {
+        throw HttpError.notFound('Store use entry not found');
+      }
+
+      const nextProduct = await tx.product.findFirst({
+        where: { id: input.productId, deletedAt: null },
+        select: { id: true, name: true, stockQuantity: true, buyingPrice: true },
+      });
+
+      if (!nextProduct) {
+        throw HttpError.badRequest('Invalid productId');
+      }
+
+      const previousQuantity = Math.abs(existing.quantity);
+      let nextBalanceAfter = 0;
+
+      if (existing.productId === nextProduct.id) {
+        const restoredStock = existing.product.stockQuantity + previousQuantity;
+
+        if (input.quantity > restoredStock) {
+          throw HttpError.badRequest(`Insufficient stock for ${nextProduct.name}`);
+        }
+
+        nextBalanceAfter = restoredStock - input.quantity;
+
+        await tx.product.update({
+          where: { id: nextProduct.id },
+          data: { stockQuantity: nextBalanceAfter },
+        });
+      } else {
+        await tx.product.update({
+          where: { id: existing.productId },
+          data: { stockQuantity: { increment: previousQuantity } },
+        });
+
+        if (input.quantity > nextProduct.stockQuantity) {
+          throw HttpError.badRequest(`Insufficient stock for ${nextProduct.name}`);
+        }
+
+        nextBalanceAfter = nextProduct.stockQuantity - input.quantity;
+
+        await tx.product.update({
+          where: { id: nextProduct.id },
+          data: { stockQuantity: nextBalanceAfter },
+        });
+      }
+
+      const updated = await tx.stockMovement.update({
+        where: { id: existing.id },
+        data: {
+          productId: nextProduct.id,
+          quantity: -input.quantity,
+          unitPrice: nextProduct.buyingPrice,
+          balanceAfter: nextBalanceAfter,
+          note: input.note,
+          createdAt: input.date ? new Date(`${input.date}T00:00:00.000Z`) : existing.createdAt,
+        },
+        select: {
+          id: true,
+          productId: true,
+          quantity: true,
+          note: true,
+          unitPrice: true,
+          createdAt: true,
+          balanceAfter: true,
+          product: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      return {
+        id: updated.id,
+        productId: updated.productId,
+        productName: updated.product.name,
+        quantity: updated.quantity,
+        type: 'INTERNAL_USE' as const,
+        note: updated.note,
+        unitPrice: updated.unitPrice?.toString() ?? '0.00',
+        date: updated.createdAt,
+        balanceAfter: updated.balanceAfter,
+      };
+    });
+  }
 }

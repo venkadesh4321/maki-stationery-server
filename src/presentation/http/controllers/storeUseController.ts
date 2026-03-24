@@ -11,6 +11,10 @@ const createStoreUseSchema = z.object({
   date: z.string().date().optional(),
 });
 
+const storeUseParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
 const listStoreUseSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
@@ -32,6 +36,25 @@ export const storeUseController = {
 
     res.status(StatusCodes.CREATED).json({
       message: 'Store use entry recorded successfully',
+      transaction,
+    });
+  },
+
+  update: async (req: Request, res: Response): Promise<void> => {
+    const paramsParsed = storeUseParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) {
+      throw HttpError.badRequest('Invalid store use id');
+    }
+
+    const bodyParsed = createStoreUseSchema.safeParse(req.body);
+    if (!bodyParsed.success) {
+      throw HttpError.badRequest('Invalid store use payload');
+    }
+
+    const transaction = await storeUseService.updateStoreUse(paramsParsed.data.id, bodyParsed.data);
+
+    res.status(StatusCodes.OK).json({
+      message: 'Store use entry updated successfully',
       transaction,
     });
   },
