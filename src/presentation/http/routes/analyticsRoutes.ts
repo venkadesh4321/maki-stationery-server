@@ -12,6 +12,7 @@ router.get('/dashboard', asyncHandler(analyticsController.dashboard));
 router.get('/daily-sales', asyncHandler(analyticsController.dailySales));
 router.get('/monthly-sales', asyncHandler(analyticsController.monthlySales));
 router.get('/product-profit', asyncHandler(analyticsController.productProfit));
+router.get('/item-profit', asyncHandler(analyticsController.itemProfit));
 router.get('/category-profit', asyncHandler(analyticsController.categoryProfit));
 router.get('/dead-stock', asyncHandler(analyticsController.deadStock));
 router.get('/fast-moving', asyncHandler(analyticsController.fastMoving));

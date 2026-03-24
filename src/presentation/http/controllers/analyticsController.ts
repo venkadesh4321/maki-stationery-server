@@ -70,6 +70,21 @@ export const analyticsController = {
     res.json({ data });
   },
 
+  itemProfit: async (req: Request, res: Response): Promise<void> => {
+    const parsed = limitDateRangeSchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw HttpError.badRequest('Invalid query params');
+    }
+
+    const data = await analyticsService.getItemWiseProfitReport({
+      from: parseDate(parsed.data.from),
+      to: parseDate(parsed.data.to),
+      limit: parsed.data.limit,
+    });
+
+    res.json({ data });
+  },
+
   categoryProfit: async (req: Request, res: Response): Promise<void> => {
     const parsed = dateRangeSchema.safeParse(req.query);
     if (!parsed.success) {

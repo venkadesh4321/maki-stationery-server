@@ -6,6 +6,14 @@ interface DateRangeInput {
   to?: Date;
 }
 
+function profitPercentFrom(sales: number, profit: number): number {
+  if (!Number.isFinite(sales) || sales <= 0) {
+    return 0;
+  }
+
+  return Number(((profit / sales) * 100).toFixed(2));
+}
+
 function toSqlDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
@@ -219,12 +227,20 @@ export const analyticsService = {
   },
 
   async getProductWiseProfitReport(input: DateRangeInput & { limit?: number }): Promise<
-    Array<{ productId: number; productName: string; quantity: number; sales: number; cost: number; profit: number }>
+    Array<{
+      productId: number;
+      productName: string;
+      quantity: number;
+      sales: number;
+      cost: number;
+      profit: number;
+      profitPercent: number;
+    }>
   > {
     const { from, to } = resolveDateRange(input, 30);
     const limit = input.limit ?? 20;
 
-    return prisma.$queryRaw<
+    const rows = await prisma.$queryRaw<
       Array<{ productId: number; productName: string; quantity: number; sales: number; cost: number; profit: number }>
     >(Prisma.sql`
       SELECT
@@ -244,14 +260,80 @@ export const analyticsService = {
       ORDER BY profit DESC
       LIMIT ${limit}
     `);
+
+    return rows.map((row) => ({
+      ...row,
+      profitPercent: profitPercentFrom(row.sales, row.profit),
+    }));
+  },
+
+  async getItemWiseProfitReport(input: DateRangeInput & { limit?: number }): Promise<
+    Array<{
+      itemId: number;
+      itemName: string;
+      quantity: number;
+      averageSellingPrice: number;
+      averageCostPrice: number;
+      sales: number;
+      cost: number;
+      profit: number;
+      profitPercent: number;
+    }>
+  > {
+    const { from, to } = resolveDateRange(input, 30);
+    const limit = input.limit ?? 20;
+
+    const rows = await prisma.$queryRaw<
+      Array<{
+        itemId: number;
+        itemName: string;
+        quantity: number;
+        averageSellingPrice: number;
+        averageCostPrice: number;
+        sales: number;
+        cost: number;
+        profit: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        pr.id AS "itemId",
+        pr.name AS "itemName",
+        COALESCE(SUM(si.quantity), 0)::int AS quantity,
+        COALESCE(AVG(si."unitPrice"), 0)::double precision AS "averageSellingPrice",
+        COALESCE(AVG(pr."buyingPrice"), 0)::double precision AS "averageCostPrice",
+        COALESCE(SUM(si."lineTotal"), 0)::double precision AS sales,
+        COALESCE(SUM((si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS cost,
+        COALESCE(SUM(si."lineTotal" - (si.quantity * pr."buyingPrice")::numeric), 0)::double precision AS profit
+      FROM "Sale" s
+      INNER JOIN "SaleItem" si ON si."saleId" = s.id
+      INNER JOIN "Product" pr ON pr.id = si."productId"
+      WHERE s."status" = 'ACTIVE'
+        AND s."saleDate" >= ${new Date(`${toSqlDate(from)}T00:00:00.000Z`)}
+        AND s."saleDate" <= ${new Date(`${toSqlDate(to)}T23:59:59.999Z`)}
+      GROUP BY pr.id, pr.name
+      ORDER BY quantity DESC, sales DESC
+      LIMIT ${limit}
+    `);
+
+    return rows.map((row) => ({
+      ...row,
+      profitPercent: profitPercentFrom(row.sales, row.profit),
+    }));
   },
 
   async getCategoryWiseProfitReport(input: DateRangeInput): Promise<
-    Array<{ categoryId: number; categoryName: string; sales: number; cost: number; profit: number }>
+    Array<{
+      categoryId: number;
+      categoryName: string;
+      sales: number;
+      cost: number;
+      profit: number;
+      profitPercent: number;
+    }>
   > {
     const { from, to } = resolveDateRange(input, 30);
 
-    return prisma.$queryRaw<
+    const rows = await prisma.$queryRaw<
       Array<{ categoryId: number; categoryName: string; sales: number; cost: number; profit: number }>
     >(Prisma.sql`
       SELECT
@@ -270,6 +352,11 @@ export const analyticsService = {
       GROUP BY c.id, c.name
       ORDER BY profit DESC
     `);
+
+    return rows.map((row) => ({
+      ...row,
+      profitPercent: profitPercentFrom(row.sales, row.profit),
+    }));
   },
 
   async getDeadStockReport(input: { days?: number }): Promise<
